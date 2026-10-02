@@ -1,4 +1,5 @@
 import ArgumentParser
+import Foundation
 import MockerKit
 
 enum InspectObjectType: String, ExpressibleByArgument {
@@ -55,22 +56,22 @@ struct Inspect: AsyncParsableCommand {
         switch Self.resolveKind(type: type) {
         case .image:
             let results = try await inspectImages(targets: targets, platform: platform, manager: imageManager)
-            try TableFormatter.printJSONArray(results, escapeSlashes: false)
+            try emitAll(results, escapeSlashes: false)
 
         case .container:
             let results = try await inspectContainers(targets: targets, engine: engine)
             for container in results {
-                try TableFormatter.printJSONArray(container)
+                try emit(container)
             }
 
         case .auto:
             for target in targets {
                 if let container = try? await engine.inspect(target) {
-                    try TableFormatter.printJSONArray(container)
+                    try emit(container)
                 } else {
                     do {
                         let image = try await imageManager.inspect(target, platform: platform)
-                        try TableFormatter.printJSONArray(image, escapeSlashes: false)
+                        try emit(image, escapeSlashes: false)
                     } catch {
                         if platform != nil {
                             throw error
@@ -80,5 +81,39 @@ struct Inspect: AsyncParsableCommand {
                 }
             }
         }
+    }
+
+    // MARK: - Output
+
+    /// Emit one inspect result: render `--format` when set, else the JSON array.
+    private func emit<T: Encodable>(_ value: T, escapeSlashes: Bool = true) throws {
+        guard let format else {
+            try TableFormatter.printJSONArray(value, escapeSlashes: escapeSlashes)
+            return
+        }
+        let object = try jsonObject(value)
+        print(GoTemplate.render(format, object: object))
+    }
+
+    /// Emit a collection in a single call, preserving the no-format array shape.
+    private func emitAll<T: Encodable>(_ values: [T], escapeSlashes: Bool = true) throws {
+        guard let format else {
+            try TableFormatter.printJSONArray(values, escapeSlashes: escapeSlashes)
+            return
+        }
+        for value in values {
+            let object = try jsonObject(value)
+            print(GoTemplate.render(format, object: object))
+        }
+    }
+
+    /// Encode `value` to JSON and decode it back to a dictionary for path resolution.
+    /// Going through JSON guarantees the template sees the exact keys mocker emits.
+    private func jsonObject<T: Encodable>(_ value: T) throws -> [String: Any] {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let data = try encoder.encode(value)
+        let decoded = try JSONSerialization.jsonObject(with: data)
+        return decoded as? [String: Any] ?? [:]
     }
 }
