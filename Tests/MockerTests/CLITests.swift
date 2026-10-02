@@ -403,4 +403,152 @@ struct CLITests {
         try command.validate()
         #expect(command.command == ["ls", "-la"])
     }
+
+    // Negative-number-valued options (`--memory-swap -1`, `--pids-limit -1`,
+    // `--oom-score-adj -500`) used to fail in the space-separated form because
+    // ArgumentParser's default `.next` parsing strategy refuses to consume a
+    // following token that looks like another flag (leading `-`). The `=`-joined
+    // form (`--memory-swap=-1`) always worked, masking the bug. Fixed by declaring
+    // these options with `parsing: .unconditional` so the immediately following
+    // token is always treated as the value, matching Docker CLI parity. Both forms
+    // must parse to the same value for every affected flag on every command that
+    // declares it.
+
+    @Test("Create accepts --memory-swap -1 (space form)")
+    func createMemorySwapSpaceForm() throws {
+        let command = try Create.parse(["--memory-swap", "-1", "alpine"])
+        #expect(command.memorySwap == "-1")
+    }
+
+    @Test("Create accepts --memory-swap=-1 (equals form)")
+    func createMemorySwapEqualsForm() throws {
+        let command = try Create.parse(["--memory-swap=-1", "alpine"])
+        #expect(command.memorySwap == "-1")
+    }
+
+    @Test("Create accepts --pids-limit -1 (space form)")
+    func createPidsLimitSpaceForm() throws {
+        let command = try Create.parse(["--pids-limit", "-1", "alpine"])
+        #expect(command.pidsLimit == -1)
+    }
+
+    @Test("Create accepts --pids-limit=-1 (equals form)")
+    func createPidsLimitEqualsForm() throws {
+        let command = try Create.parse(["--pids-limit=-1", "alpine"])
+        #expect(command.pidsLimit == -1)
+    }
+
+    @Test("Create accepts --oom-score-adj -500 (space form)")
+    func createOomScoreAdjSpaceForm() throws {
+        let command = try Create.parse(["--oom-score-adj", "-500", "alpine"])
+        #expect(command.oomScoreAdj == -500)
+    }
+
+    @Test("Create accepts --oom-score-adj=-500 (equals form)")
+    func createOomScoreAdjEqualsForm() throws {
+        let command = try Create.parse(["--oom-score-adj=-500", "alpine"])
+        #expect(command.oomScoreAdj == -500)
+    }
+
+    @Test("Run accepts --memory-swap -1 (space form)")
+    func runMemorySwapSpaceForm() throws {
+        let command = try Run.parse(["--memory-swap", "-1", "alpine"])
+        #expect(command.memorySwap == "-1")
+    }
+
+    @Test("Run accepts --pids-limit -1 (space form)")
+    func runPidsLimitSpaceForm() throws {
+        let command = try Run.parse(["--pids-limit", "-1", "alpine"])
+        #expect(command.pidsLimit == -1)
+    }
+
+    @Test("Run accepts --oom-score-adj -500 (space form)")
+    func runOomScoreAdjSpaceForm() throws {
+        let command = try Run.parse(["--oom-score-adj", "-500", "alpine"])
+        #expect(command.oomScoreAdj == -500)
+    }
+
+    @Test("Update accepts --memory-swap -1 (space form)")
+    func updateMemorySwapSpaceForm() throws {
+        let command = try Update.parse(["--memory-swap", "-1", "some-container"])
+        #expect(command.memorySwap == "-1")
+    }
+
+    @Test("Update accepts --pids-limit -1 (space form)")
+    func updatePidsLimitSpaceForm() throws {
+        let command = try Update.parse(["--pids-limit", "-1", "some-container"])
+        #expect(command.pidsLimit == -1)
+    }
+
+    @Test("Update still parses a positive --pids-limit value normally")
+    func updatePidsLimitPositiveValue() throws {
+        let command = try Update.parse(["--pids-limit", "100", "some-container"])
+        #expect(command.pidsLimit == 100)
+    }
+
+    // --cpu-quota and --memory-swappiness accept a negative sentinel in Docker too
+    // (-1 disables the quota / falls back to the daemon default), so the same
+    // space-separated parsing bug applied to them.
+
+    @Test("Create accepts --cpu-quota -1 (space form)")
+    func createCpuQuotaSpaceForm() throws {
+        let command = try Create.parse(["--cpu-quota", "-1", "alpine"])
+        #expect(command.cpuQuota == -1)
+    }
+
+    @Test("Create accepts --memory-swappiness -1 (space form)")
+    func createMemorySwappinessSpaceForm() throws {
+        let command = try Create.parse(["--memory-swappiness", "-1", "alpine"])
+        #expect(command.memorySwappiness == -1)
+    }
+
+    @Test("Run accepts --cpu-quota -1 (space form)")
+    func runCpuQuotaSpaceForm() throws {
+        let command = try Run.parse(["--cpu-quota", "-1", "alpine"])
+        #expect(command.cpuQuota == -1)
+    }
+
+    @Test("Run accepts --memory-swappiness -1 (space form)")
+    func runMemorySwappinessSpaceForm() throws {
+        let command = try Run.parse(["--memory-swappiness", "-1", "alpine"])
+        #expect(command.memorySwappiness == -1)
+    }
+
+    @Test("Update accepts --cpu-quota -1 (space form)")
+    func updateCpuQuotaSpaceForm() throws {
+        let command = try Update.parse(["--cpu-quota", "-1", "some-container"])
+        #expect(command.cpuQuota == -1)
+    }
+
+    // `.unconditional` parsing means an omitted --memory-swap value now silently
+    // consumes the next flag as its "value" instead of erroring — String has no
+    // type-level check the way Int-typed options (--pids-limit, --oom-score-adj,
+    // --cpu-quota) get from ArgumentParser's own conversion. `validate()` rejects
+    // any value that is itself long-flag-shaped so this doesn't fail silently.
+
+    // `Command.parse(...)` already runs `validate()` internally (see
+    // ArgumentParser's `ParsableArguments.parse(_:)`) and wraps whatever it throws
+    // as `ParserError.userValidationError`, so the rejection surfaces at the
+    // `parse()` call itself, not a separately-called `.validate()`.
+
+    @Test("Create rejects --memory-swap immediately followed by another flag")
+    func createMemorySwapRejectsSwallowedFlag() {
+        #expect(throws: (any Error).self) {
+            _ = try Create.parse(["--memory-swap", "--oom-kill-disable", "alpine"])
+        }
+    }
+
+    @Test("Run rejects --memory-swap immediately followed by another flag")
+    func runMemorySwapRejectsSwallowedFlag() {
+        #expect(throws: (any Error).self) {
+            _ = try Run.parse(["--memory-swap", "--oom-kill-disable", "alpine"])
+        }
+    }
+
+    @Test("Update rejects --memory-swap immediately followed by another flag")
+    func updateMemorySwapRejectsSwallowedFlag() {
+        #expect(throws: (any Error).self) {
+            _ = try Update.parse(["--memory-swap", "--force", "some-container"])
+        }
+    }
 }

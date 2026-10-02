@@ -145,7 +145,7 @@ struct Run: AsyncParsableCommand {
     @Option(name: .customLong("cpu-period"), help: "Limit CPU CFS (Completely Fair Scheduler) period")
     var cpuPeriod: Int?
 
-    @Option(name: .customLong("cpu-quota"), help: "Limit CPU CFS (Completely Fair Scheduler) quota")
+    @Option(name: .customLong("cpu-quota"), parsing: .unconditional, help: "Limit CPU CFS (Completely Fair Scheduler) quota: -1 to disable")
     var cpuQuota: Int?
 
     @Option(name: .customLong("cpu-rt-period"), help: "Limit CPU real-time period in microseconds")
@@ -250,10 +250,10 @@ struct Run: AsyncParsableCommand {
     @Option(name: .customLong("memory-reservation"), help: "Memory soft limit")
     var memoryReservation: String?
 
-    @Option(name: .customLong("memory-swap"), help: "Swap limit equal to memory plus swap: -1 to enable unlimited swap")
+    @Option(name: .customLong("memory-swap"), parsing: .unconditional, help: "Swap limit equal to memory plus swap: -1 to enable unlimited swap")
     var memorySwap: String?
 
-    @Option(name: .customLong("memory-swappiness"), help: "Tune container memory swappiness (0 to 100)")
+    @Option(name: .customLong("memory-swappiness"), parsing: .unconditional, help: "Tune container memory swappiness (0 to 100, or -1 to use the daemon default)")
     var memorySwappiness: Int?
 
     @Option(name: .customLong("network-alias"), parsing: .singleValue, help: "Add network-scoped alias for the container")
@@ -265,13 +265,13 @@ struct Run: AsyncParsableCommand {
     @Flag(name: .customLong("oom-kill-disable"), help: "Disable OOM Killer")
     var oomKillDisable = false
 
-    @Option(name: .customLong("oom-score-adj"), help: "Tune host's OOM preferences (-1000 to 1000)")
+    @Option(name: .customLong("oom-score-adj"), parsing: .unconditional, help: "Tune host's OOM preferences (-1000 to 1000)")
     var oomScoreAdj: Int?
 
     @Option(name: .long, help: "PID namespace to use")
     var pid: String?
 
-    @Option(name: .customLong("pids-limit"), help: "Tune container pids limit (set -1 for unlimited)")
+    @Option(name: .customLong("pids-limit"), parsing: .unconditional, help: "Tune container pids limit (set -1 for unlimited)")
     var pidsLimit: Int?
 
     @Flag(name: [.customShort("P"), .customLong("publish-all")], help: "Publish all exposed ports to random ports")
@@ -317,6 +317,7 @@ struct Run: AsyncParsableCommand {
         if command.first == "--" {
             command.removeFirst()
         }
+        try validateResourceOptionValue(memorySwap, flag: "--memory-swap")
     }
 
     func run() async throws {

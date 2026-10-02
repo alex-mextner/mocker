@@ -22,7 +22,7 @@ struct Update: AsyncParsableCommand {
     @Option(name: .long, help: "Restart policy to apply")
     var restart: String?
 
-    @Option(name: .customLong("pids-limit"), help: "Tune container pids limit (-1 for unlimited)")
+    @Option(name: .customLong("pids-limit"), parsing: .unconditional, help: "Tune container pids limit (-1 for unlimited)")
     var pidsLimit: Int?
 
     @Option(name: .customLong("blkio-weight"), help: "Block IO (relative weight), between 10 and 1000, or 0 to disable")
@@ -31,7 +31,7 @@ struct Update: AsyncParsableCommand {
     @Option(name: .customLong("cpu-period"), help: "Limit CPU CFS (Completely Fair Scheduler) period")
     var cpuPeriod: Int?
 
-    @Option(name: .customLong("cpu-quota"), help: "Limit CPU CFS (Completely Fair Scheduler) quota")
+    @Option(name: .customLong("cpu-quota"), parsing: .unconditional, help: "Limit CPU CFS (Completely Fair Scheduler) quota: -1 to disable")
     var cpuQuota: Int?
 
     @Option(name: .customLong("cpu-rt-period"), help: "Limit CPU real-time period in microseconds")
@@ -49,8 +49,12 @@ struct Update: AsyncParsableCommand {
     @Option(name: .customLong("memory-reservation"), help: "Memory soft limit")
     var memoryReservation: String?
 
-    @Option(name: .customLong("memory-swap"), help: "Swap limit equal to memory plus swap: -1 to enable unlimited swap")
+    @Option(name: .customLong("memory-swap"), parsing: .unconditional, help: "Swap limit equal to memory plus swap: -1 to enable unlimited swap")
     var memorySwap: String?
+
+    mutating func validate() throws {
+        try validateResourceOptionValue(memorySwap, flag: "--memory-swap")
+    }
 
     func run() async throws {
         // Apple's Containerization runtime has no `container update` equivalent: a
